@@ -1,25 +1,34 @@
-from langchain_openai import ChatOpenAI
-from langchain.agents import create_react_agent, AgentExecutor
-from langchain.tools import tool
-import sympy  # For symbolic math; add to requirements.txt if needed: pip install sympy
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.prompts import PromptTemplate
 
-llm = ChatOpenAI(temperature=0.3)
-
-@tool
-def solve_equation(equation: str) -> str:
-    """Solve a math equation using sympy."""
+def solver_agent(parsed_problem, rag_context):
     try:
-        expr = sympy.sympify(equation)
-        solution = sympy.solve(expr)
-        return str(solution)
+        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0)
+        
+        prompt = PromptTemplate.from_template("""
+        You are an expert Math Solver. 
+        Solve the problem below using the provided context formulas.
+        
+        Problem: {problem_text}
+        Topic: {topic}
+        Context/Formulas: {rag_context}
+        
+        Show your work step-by-step. Return the final answer clearly.
+        """)
+        
+        chain = prompt | llm
+        
+        # Extract the text from the dictionary passed by supervisor
+        problem_text = parsed_problem.get("problem_text", str(parsed_problem))
+        topic = parsed_problem.get("topic", "General Math")
+        
+        response = chain.invoke({
+            "problem_text": problem_text, 
+            "topic": topic,
+            "rag_context": rag_context
+        })
+        
+        return {"solution_text": response.content}
+        
     except Exception as e:
-        return f"Error: {e}"
-
-tools = [solve_equation]  # Add more tools like calculator if needed
-solver_agent = create_react_agent(llm, tools)
-solver_executor = AgentExecutor(agent=solver_agent, tools=tools, verbose=True)
-
-def run_solver(problem: str, context: str) -> str:
-    input_prompt = f"Solve this problem using context: {problem}\nContext: {context}"
-    result = solver_executor.invoke({"input": input_prompt})
-    return result['output']
+        return {"solution_text": f"Solver Error: {str(e)}"}
