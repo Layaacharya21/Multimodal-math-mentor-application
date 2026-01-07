@@ -1,5 +1,4 @@
 from langchain_openai import ChatOpenAI
-from langchain import hub
 from langchain.agents import create_react_agent, AgentExecutor
 from langchain.tools.retriever import create_retriever_tool
 
@@ -12,7 +11,6 @@ retriever_tool = create_retriever_tool(
     "Searches the math knowledge base for relevant formulas and tips."
 )
 tools = [retriever_tool]
-prompt = hub.pull("hwchase17/react")
 retriever_agent = create_react_agent(llm, tools, prompt)
 retriever_executor = AgentExecutor(agent=retriever_agent, tools=tools, verbose=True)
 

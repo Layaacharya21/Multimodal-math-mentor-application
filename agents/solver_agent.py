@@ -1,5 +1,4 @@
 from langchain_openai import ChatOpenAI
-from langchain import hub
 from langchain.agents import create_react_agent, AgentExecutor
 from langchain.tools import tool
 import sympy  # For symbolic math; add to requirements.txt if needed: pip install sympy
@@ -17,7 +16,6 @@ def solve_equation(equation: str) -> str:
         return f"Error: {e}"
 
 tools = [solve_equation]  # Add more tools like calculator if needed
-prompt = hub.pull("hwchase17/react")
 solver_agent = create_react_agent(llm, tools, prompt)
 solver_executor = AgentExecutor(agent=solver_agent, tools=tools, verbose=True)
 

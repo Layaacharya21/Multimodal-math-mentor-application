@@ -1,23 +1,32 @@
-from langchain_openai import ChatOpenAI
-from langchain import hub
-from langchain.agents import create_react_agent, AgentExecutor
-from langchain.tools import tool
+# Already good if you moved your parse_problem function here
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain.prompts import PromptTemplate
+from langchain.chains import LLMChain
+import json
 
-llm = ChatOpenAI(temperature=0.2)  # Low temp for accuracy
+def parse_problem(text: str):
+    try:
+        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0)
+        prompt = PromptTemplate.from_template("""
+You are a precise math problem parser.
 
-@tool
-def clean_math_text(text: str) -> str:
-    """Clean and standardize math problem text."""
-    # Simple cleaning: remove noise, format equations
-    cleaned = text.strip().replace('\n', ' ').lower()
-    # Add more logic if needed, e.g., regex for math symbols
-    return cleaned
+Input: {text}
 
-tools = [clean_math_text]
-prompt = hub.pull("hwchase17/react")  # ReAct prompt template
-parser_agent = create_react_agent(llm, tools, prompt)
-parser_executor = AgentExecutor(agent=parser_agent, tools=tools, verbose=True)
+Return ONLY valid JSON:
+{{
+  "problem_text": "cleaned problem statement",
+  "topic": "algebra|probability|calculus|geometry|other",
+  "variables": [],
+  "constraints": [],
+  "needs_clarification": false
+}}
+""")
+        chain = LLMChain(llm=llm, prompt=prompt)
+        response = chain.run(text=text)
 
-def run_parser(input_text: str) -> str:
-    result = parser_executor.invoke({"input": f"Parse and clean this math problem: {input_text}"})
-    return result['output']
+        start = response.find("{")
+        end = response.rfind("}") + 1
+        json_str = response[start:end]
+        return json.loads(json_str)
+    except Exception as e:
+        return {"error": str(e)}
