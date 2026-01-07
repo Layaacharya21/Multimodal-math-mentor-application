@@ -48,27 +48,16 @@ load_dotenv()
 # ============================
 @st.cache_resource(show_spinner="Loading knowledge base and building vector store...")
 def load_vector_store():
-    # Explicitly get the key from environment
-    api_key = os.getenv("GOOGLE_API_KEY")
-    if not api_key:
-        st.error("GOOGLE_API_KEY not found in environment variables. Please set it in your .env file.")
-        return None
+    from langchain_community.embeddings import HuggingFaceEmbeddings
 
     try:
-        embeddings = GoogleGenerativeAIEmbeddings(
-            model="models/embedding-001",
-            google_api_key=api_key  # <-- This forces it to use your key
-        )
-    except Exception as e:
-        st.error(f"Failed to initialize embeddings: {str(e)}")
-        return None
+        embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")  # Fast, local, free
 
-    try:
         loader = DirectoryLoader("knowledge_base/", glob="*.txt", loader_cls=TextLoader)
         docs = loader.load()
 
         if not docs:
-            st.warning("No documents found in 'knowledge_base/' folder. Add some .txt files to enable RAG.")
+            st.warning("No documents found in 'knowledge_base/' folder. Add some .txt files.")
             return None
 
         text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
@@ -105,7 +94,7 @@ if "rag_sources" not in st.session_state:
 def parse_problem(text: str):
     try:
         llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash",
+            model="gemini-2.5-flash",
             temperature=0,
             convert_system_message_to_human=True
         )
