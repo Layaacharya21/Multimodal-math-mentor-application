@@ -64,7 +64,7 @@ retriever = get_retriever()
 def parse_problem(text: str):
     """Uses Gemini to clean and structure raw input text into JSON."""
     try:
-        llm = ChatGoogleGenerativeAI(model="gemini-pro", temperature=0)
+        llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0)
         prompt = PromptTemplate.from_template("""
         You are a precise math problem parser. 
         Clean and structure the following input: {text}
