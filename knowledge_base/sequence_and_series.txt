@@ -1,0 +1,10 @@
+Arithmetic Progression (AP):
+- n-th term = a + (n-1)d
+- Sum (Sn) = (n/2)[2a + (n-1)d]
+
+Geometric Progression (GP):
+- n-th term = a * r^(n-1)
+- Sum (Sn) = a(r^n - 1) / (r - 1)
+- Infinite Sum (for |r| < 1): S∞ = a / (1 - r)
+
+JEE Tip: Many "series" problems are actually Arithmetico-Geometric Progressions (AGP). Use the method of shifting and subtracting to solve.

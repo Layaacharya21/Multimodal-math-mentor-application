@@ -1,0 +1,8 @@
+King's Property:
+∫ (a to b) f(x) dx = ∫ (a to b) f(a + b - x) dx
+
+Even and Odd Functions:
+- If f(-x) = -f(x) [Odd], then ∫ (-a to a) f(x) dx = 0.
+- If f(-x) = f(x) [Even], then ∫ (-a to a) f(x) dx = 2 * ∫ (0 to a) f(x) dx.
+
+Pitfall: When using substitution in definite integrals, do not forget to change the upper and lower limits to match the new variable.

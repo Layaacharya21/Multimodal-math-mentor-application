@@ -1,0 +1,7 @@
+Euler's Form: z = r * e^(iθ) = r(cos θ + i sin θ)
+Modulus: |z| = sqrt(x² + y²)
+Argument: θ = tan⁻¹(y/x)
+
+De Moivre's Theorem: (cos θ + i sin θ)^n = cos(nθ) + i sin(nθ)
+
+Pitfall: The argument depends on the quadrant. Always check if x and y are positive or negative before finalizing the angle θ.

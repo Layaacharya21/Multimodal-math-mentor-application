@@ -1,0 +1,14 @@
+Trigonometry Core Identities:
+1. sin²θ + cos²θ = 1
+2. 1 + tan²θ = sec²θ
+3. 1 + cot²θ = cosec²θ
+
+Compound Angles:
+- sin(A ± B) = sinA cosB ± cosA sinB
+- cos(A ± B) = cosA cosB ∓ sinA sinB
+
+Double Angles:
+- sin(2θ) = 2sinθ cosθ
+- cos(2θ) = cos²θ - sin²θ = 2cos²θ - 1 = 1 - 2sin²θ
+
+JEE Pitfall: Pay close attention to the sign in cos(A+B); it uses a minus sign. Also, remember that tanθ is undefined at odd multiples of π/2.

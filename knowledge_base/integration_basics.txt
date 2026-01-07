@@ -1,0 +1,11 @@
+Standard Integrals:
+- ∫ x^n dx = [x^(n+1) / (n+1)] + C (n ≠ -1)
+- ∫ (1/x) dx = ln|x| + C
+- ∫ e^x dx = e^x + C
+- ∫ sin x dx = -cos x + C
+
+Integration by Parts (ILATE):
+∫ u v dx = u ∫ v dx - ∫ [u' * ∫ v dx] dx
+Order of priority for 'u': Inverse, Log, Algebraic, Trig, Exponential.
+
+Pitfall: Forgetting the '+ C' in indefinite integrals can lose marks in subjective steps.

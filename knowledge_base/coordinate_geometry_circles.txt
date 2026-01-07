@@ -1,0 +1,10 @@
+Circle Equations:
+Standard form: (x - h)² + (y - k)² = r², where (h,k) is center and r is radius.
+General form: x² + y² + 2gx + 2fy + c = 0. 
+- Center: (-g, -f)
+- Radius: sqrt(g² + f² - c)
+
+Tangent Condition:
+The line y = mx + c is tangent to x² + y² = a² if c² = a²(1 + m²).
+
+Common Error: Always ensure the coefficients of x² and y² are equal to 1 before calculating the center or radius from the general form.

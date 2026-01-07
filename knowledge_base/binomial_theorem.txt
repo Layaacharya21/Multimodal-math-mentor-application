@@ -1,0 +1,9 @@
+Binomial Expansion of (a + b)^n:
+General Term: T(r+1) = nCr * a^(n-r) * b^r
+
+Key Properties:
+- Total number of terms = n + 1.
+- Sum of all binomial coefficients = 2^n.
+- Middle term: If n is even, (n/2 + 1)th term. If n is odd, ((n+1)/2)th and ((n+3)/2)th terms.
+
+Pitfall: The 'r' in the formula for the 'k-th' term is always (k-1). For the 5th term, use r = 4.

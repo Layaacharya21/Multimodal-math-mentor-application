@@ -9,6 +9,9 @@ from langchain_classic.chains import LLMChain
 from transformers import pipeline
 import librosa
 import json
+# Add at the very top of app.py (temporary debug)
+import os
+print("GEMINI KEY:", os.getenv("GEMINI_API_KEY")[:5] + "..." if os.getenv("GEMINI_API_KEY") else "MISSING")
 
 load_dotenv()
 

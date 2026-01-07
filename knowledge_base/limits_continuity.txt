@@ -1,0 +1,10 @@
+Standard Limits:
+- lim (x→0) [sin x / x] = 1
+- lim (x→0) [tan x / x] = 1
+- lim (x→0) [(e^x - 1) / x] = 1
+- lim (x→0) [ln(1+x) / x] = 1
+
+L'Hopital's Rule:
+If limit is 0/0 or inf/inf, differentiate numerator and denominator separately: lim [f(x)/g(x)] = lim [f'(x)/g'(x)].
+
+Common Mistake: Applying L'Hopital's rule when the form is NOT 0/0 or inf/inf. Always check the form first!

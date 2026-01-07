@@ -1,0 +1,9 @@
+First Order Linear Equation:
+dy/dx + Py = Q (where P, Q are functions of x)
+1. Find Integrating Factor (IF) = e^(∫ P dx)
+2. Solution: y * (IF) = ∫ (Q * IF) dx + C
+
+Variable Separable:
+Group all 'y' terms with 'dy' and 'x' terms with 'dx', then integrate both sides.
+
+Pitfall: Ensure the coefficient of dy/dx is 1 before identifying the function P for the Integrating Factor.
