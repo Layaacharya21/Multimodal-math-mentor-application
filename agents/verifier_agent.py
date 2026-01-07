@@ -11,7 +11,7 @@ def check_accuracy(solution: str, problem: str) -> str:
     return "Valid" if "error" not in solution.lower() else "Invalid"
 
 tools = [check_accuracy]
-verifier_agent = create_react_agent(llm, tools, prompt)
+verifier_agent = create_react_agent(llm, tools)
 verifier_executor = AgentExecutor(agent=verifier_agent, tools=tools, verbose=True)
 
 def run_verifier(solution: str, problem: str) -> str:

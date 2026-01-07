@@ -1,383 +1,198 @@
 import streamlit as st
 import os
-from dotenv import load_dotenv
-from pathlib import Path
-from agents.parser_agent import parser_agent
-from agents.retriever_agent import retriever_agent
-from agents.solver_agent import solver_agent
-from agents.verifier_agent import verifier_agent
-from agents.explainer_agent import explainer_agent
-from agents.supervisor import run_multi_agent_system
-
-# ============================
-# FORCE LOAD .env FILE (Critical Fix for Codespaces)
-# ============================
-env_path = Path('.') / '.env'
-if env_path.exists():
-    load_dotenv(dotenv_path=env_path)
-    print(f".env file found and loaded from {env_path}")  # Debug line
-else:
-    print(".env file NOT found in project root!")
-
-# NOW check the key
-api_key = os.getenv("GOOGLE_API_KEY")
-if api_key:
-    print(f"GOOGLE_API_KEY loaded successfully: {api_key[:6]}...{api_key[-4:]}")
-else:
-    st.error("🚨 GOOGLE_API_KEY is MISSING! Check your .env file and restart the app.")
-    st.stop()  # Stop execution if no key
-
-# ============================
-# IMPORTS AFTER ENV IS LOADED
-# ============================
-import easyocr
-from PIL import Image
-import io
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
-from langchain_classic.prompts import PromptTemplate
-from langchain_classic.chains import LLMChain
-from transformers import pipeline
-import librosa
 import json
+import io
+import librosa
+import easyocr
+from pathlib import Path
+from PIL import Image
+from dotenv import load_dotenv
+from transformers import pipeline
 
+# --- Modern LangChain Imports ---
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.prompts import PromptTemplate
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
+from langchain_huggingface import HuggingFaceEmbeddings
 
-# Temporary debug
-print("GOOGLE API KEY:", os.getenv("GOOGLE_API_KEY")[:5] + "..." if os.getenv("GOOGLE_API_KEY") else "MISSING")
+# --- Import your custom agent logic ---
+# Ensure these files use the 'invoke' method rather than 'run'
+from agents.supervisor import run_multi_agent_system
 
+# ============================
+# 1. ENVIRONMENT & CONFIG
+# ============================
 load_dotenv()
+st.set_page_config(page_title="Math Mentor", layout="wide")
 
-from langchain_community.vectorstores import FAISS
-from langchain_openai import OpenAIEmbeddings
-from langchain_community.document_loaders import DirectoryLoader, TextLoader
-
-embeddings = OpenAIEmbeddings()
-loader = DirectoryLoader('knowledge_base/', glob="*.txt", loader_cls=TextLoader)
-docs = loader.load()
-vector_store = FAISS.from_documents(docs, embeddings)
-retriever = vector_store.as_retriever()  # We'll use this in Retriever Agent
+# Verify API Key
+if not os.getenv("GOOGLE_API_KEY"):
+    st.error("🚨 GOOGLE_API_KEY is MISSING! Please check your .env file.")
+    st.stop()
 
 # ============================
-# PHASE 3: RAG SETUP (Runs once)
+# 2. RAG SETUP (Vector Store)
 # ============================
-@st.cache_resource(show_spinner="Loading knowledge base and building vector store...")
-def load_vector_store():
-    from langchain_community.embeddings import HuggingFaceEmbeddings
-
+@st.cache_resource(show_spinner="Building Math Knowledge Base...")
+def get_retriever():
     try:
-        embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")  # Fast, local, free
+        # Create folder if missing
+        if not os.path.exists("knowledge_base"):
+            os.makedirs("knowledge_base")
+            with open("knowledge_base/sample.txt", "w") as f:
+                f.write("The quadratic formula is x = (-b ± √(b² - 4ac)) / 2a")
 
+        embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
         loader = DirectoryLoader("knowledge_base/", glob="*.txt", loader_cls=TextLoader)
         docs = loader.load()
 
         if not docs:
-            st.warning("No documents found in 'knowledge_base/' folder. Add some .txt files.")
             return None
 
-        text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
         chunks = text_splitter.split_documents(docs)
-
         vector_store = FAISS.from_documents(chunks, embeddings)
         return vector_store.as_retriever(search_kwargs={"k": 3})
-
     except Exception as e:
-        st.error(f"Error loading knowledge base: {str(e)}")
+        st.error(f"RAG Init Error: {e}")
         return None
 
-retriever = load_vector_store()
+# Global Retriever Instance
+retriever = get_retriever()
 
 # ============================
-# APP UI STARTS HERE
+# 3. CORE LOGIC FUNCTIONS
 # ============================
-st.title("Math Mentor")
 
-# Input mode selector
-input_mode = st.selectbox("Choose input mode:", ["Text", "Image", "Audio"])
+def parse_problem(text: str):
+    """Uses Gemini to clean and structure raw input text into JSON."""
+    try:
+        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0)
+        prompt = PromptTemplate.from_template("""
+        You are a precise math problem parser. 
+        Clean and structure the following input: {text}
+        
+        Return ONLY valid JSON:
+        {{
+          "problem_text": "cleaned version",
+          "topic": "algebra|probability|calculus|geometry|other",
+          "variables": [],
+          "constraints": [],
+          "needs_clarification": false
+        }}
+        """)
+        
+        # LCEL Chain: Prompt piped to LLM
+        chain = prompt | llm
+        response = chain.invoke({"text": text})
+        
+        # Handle JSON parsing from LLM string
+        content = response.content
+        start = content.find("{")
+        end = content.rfind("}") + 1
+        return json.loads(content[start:end])
+    except Exception as e:
+        return {"error": str(e), "needs_clarification": True}
 
-# Session state initialization
+def retrieve_context(problem_text: str):
+    """Fetches relevant formulas from the FAISS vector store."""
+    if not retriever:
+        return {"context": "No specialized knowledge found.", "sources": []}
+    try:
+        docs = retriever.invoke(problem_text)
+        context = "\n".join([d.page_content for d in docs])
+        sources = [d.metadata.get("source", "unknown") for d in docs]
+        return {"context": context, "sources": sources}
+    except Exception as e:
+        return {"context": f"Error: {e}", "sources": []}
+
+# ============================
+# 4. STREAMLIT UI
+# ============================
+st.title("🧠 Multimodal Math Mentor")
+
+# State Management
 if "parsed_problem" not in st.session_state:
     st.session_state.parsed_problem = None
 if "rag_context" not in st.session_state:
     st.session_state.rag_context = ""
-if "rag_sources" not in st.session_state:
-    st.session_state.rag_sources = []
 
-# ============================
-# PARSER FUNCTION
-# ============================
-def parse_problem(text: str):
-    try:
-        llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            temperature=0,
-            convert_system_message_to_human=True
-        )
+# --- INPUT SECTION ---
+input_mode = st.radio("Input Method:", ["Text", "Image", "Audio"], horizontal=True)
+raw_text = ""
 
-        prompt = PromptTemplate(
-            input_variables=["text"],
-            template="""
-You are a precise math problem parser. Clean and structure the following math problem.
-
-Problem: {text}
-
-Respond ONLY with valid JSON in this exact format:
-{{
-  "problem_text": "cleaned and readable version of the problem",
-  "topic": "algebra" or "probability" or "calculus" or "linear_algebra",
-  "variables": ["x", "y", ...],
-  "constraints": ["x > 0", "n is integer", ...],
-  "needs_clarification": true or false
-}}
-
-Do not add explanations. Output only JSON.
-"""
-        )
-
-        chain = LLMChain(llm=llm, prompt=prompt)
-        response = chain.run(text=text)
-
-        # Clean any extra text around JSON
-        json_start = response.find("{")
-        json_end = response.rfind("}") + 1
-        if json_start != -1 and json_end > json_start:
-            response = response[json_start:json_end]
-
-        return json.loads(response)
-    except Exception as e:
-        return {"error": "Parsing failed", "details": str(e)}
-
-# ============================
-# RETRIEVAL FUNCTION
-# ============================
-def retrieve_context(problem_text: str):
-    if retriever is None:
-        return {"context": "", "sources": [], "error": "Vector store not loaded."}
-    
-    try:
-        relevant_docs = retriever.get_relevant_documents(problem_text)
-        context = "\n\n---\n\n".join([doc.page_content.strip() for doc in relevant_docs])
-        sources = [doc.metadata.get("source", "unknown.txt").split("/")[-1] for doc in relevant_docs]
-        return {
-            "context": context,
-            "sources": sources,
-            "num_docs": len(relevant_docs)
-        }
-    except Exception as e:
-        return {"context": "", "sources": [], "error": str(e)}
-
-# ============================
-# TEXT INPUT MODE
-# ============================
 if input_mode == "Text":
-    problem_text = st.text_area("Type your math problem:", height=150)
-    if st.button("Parse and Proceed"):
-        with st.spinner("Parsing with Gemini..."):
-            st.session_state.parsed_problem = parse_problem(problem_text)
-            st.json(st.session_state.parsed_problem)
+    raw_text = st.text_area("Enter your math problem:", height=100)
 
-        if st.session_state.parsed_problem.get("needs_clarification", False):
-            st.warning("Problem is ambiguous! Please clarify and try again.")
-        elif st.session_state.parsed_problem.get("error"):
-            st.error("Parsing failed – cannot retrieve context.")
-        else:
-            with st.spinner("Retrieving relevant knowledge..."):
-                rag_result = retrieve_context(st.session_state.parsed_problem["problem_text"])
-                st.session_state.rag_context = rag_result.get("context", "")
-                st.session_state.rag_sources = rag_result.get("sources", [])
-
-            st.success("Relevant knowledge retrieved!")
-            if st.session_state.rag_context:
-                st.text_area("Retrieved Knowledge:", value=st.session_state.rag_context, height=250, disabled=True)
-            else:
-                st.info("No relevant knowledge found.")
-
-# ============================
-# IMAGE INPUT MODE
-# ============================
 elif input_mode == "Image":
-    uploaded_image = st.file_uploader("Upload image (JPG/PNG):", type=["jpg", "png"])
-    if uploaded_image:
-        image = Image.open(uploaded_image)
-        st.image(image, caption="Uploaded Image", use_column_width=True)
+    up_img = st.file_uploader("Upload Problem Image", type=["png", "jpg", "jpeg"])
+    if up_img:
+        st.image(up_img, width=300)
+        if st.button("Extract Text"):
+            reader = easyocr.Reader(['en'])
+            ocr_result = reader.readtext(up_img.getvalue(), detail=0)
+            raw_text = " ".join(ocr_result)
+            st.text_input("OCR Result (Verify/Edit):", value=raw_text, key="ocr_edit")
 
-        if st.button("Extract Text (OCR)"):
-            with st.spinner("Running OCR..."):
-                reader = easyocr.Reader(['en'], gpu=False)
-                result = reader.readtext(uploaded_image.getvalue())
-
-                extracted_text = " ".join([text for _, text, _ in result])
-                confidences = [conf for _, _, conf in result]
-                avg_conf = sum(confidences) / len(confidences) if confidences else 0
-
-                st.write(f"**Extracted Text** (Confidence: {avg_conf:.2f})")
-                st.text_area("Edit/correct the text below:", value=extracted_text, height=150, key="edited_ocr")
-
-                if avg_conf < 0.8:
-                    st.warning("Low confidence OCR – please review and edit!")
-
-        if st.button("Parse and Proceed"):
-            problem_text = st.session_state.get("edited_ocr", extracted_text if 'extracted_text' in locals() else "")
-            if not problem_text.strip():
-                st.error("No text available to parse. Run OCR first.")
-            else:
-                with st.spinner("Parsing with Gemini..."):
-                    st.session_state.parsed_problem = parse_problem(problem_text)
-                    st.json(st.session_state.parsed_problem)
-
-                if st.session_state.parsed_problem.get("error"):
-                    st.error("Parsing failed.")
-                elif st.session_state.parsed_problem.get("needs_clarification", False):
-                    st.warning("Ambiguous problem.")
-                else:
-                    with st.spinner("Retrieving relevant knowledge..."):
-                        rag_result = retrieve_context(st.session_state.parsed_problem["problem_text"])
-                        st.session_state.rag_context = rag_result.get("context", "")
-                        st.session_state.rag_sources = rag_result.get("sources", [])
-
-                    st.success("Knowledge retrieved!")
-                    if st.session_state.rag_context:
-                        st.text_area("Retrieved Knowledge:", value=st.session_state.rag_context, height=250, disabled=True)
-
-# ============================
-# AUDIO INPUT MODE
-# ============================
 elif input_mode == "Audio":
-    uploaded_audio = st.file_uploader("Upload audio (MP3/WAV):", type=["mp3", "wav"])
-    if uploaded_audio:
-        if st.button("Transcribe (ASR)"):
-            with st.spinner("Transcribing audio with Whisper..."):
-                audio_bytes = uploaded_audio.read()
-                audio, sr = librosa.load(io.BytesIO(audio_bytes), sr=16000)
-                pipe = pipeline("automatic-speech-recognition", model="openai/whisper-tiny")
-                result = pipe({"raw": audio, "sampling_rate": sr})
-                transcript = result["text"]
+    up_aud = st.file_uploader("Upload Audio", type=["wav", "mp3"])
+    if up_aud:
+        if st.button("Transcribe"):
+            pipe = pipeline("automatic-speech-recognition", model="openai/whisper-tiny")
+            # Convert to numpy for librosa if needed, or pass directly to pipeline
+            audio, sr = librosa.load(io.BytesIO(up_aud.read()), sr=16000)
+            raw_text = pipe({"raw": audio, "sampling_rate": sr})["text"]
+            st.text_input("Transcription:", value=raw_text, key="asr_edit")
 
-                st.write("**Transcript:**")
-                st.text_area("Edit if needed:", value=transcript, height=150, key="edited_asr")
+# --- ACTION BUTTON ---
+if st.button("Step 1: Parse & Search Knowledge"):
+    input_to_parse = st.session_state.get("ocr_edit") or st.session_state.get("asr_edit") or raw_text
+    
+    if input_to_parse:
+        with st.spinner("Analyzing..."):
+            # 1. Parse
+            st.session_state.parsed_problem = parse_problem(input_to_parse)
+            # 2. Retrieve
+            rag_data = retrieve_context(st.session_state.parsed_problem.get("problem_text", ""))
+            st.session_state.rag_context = rag_data["context"]
+            st.session_state.rag_sources = rag_data["sources"]
+            st.rerun()
 
-                if len(transcript.strip()) < 10:
-                    st.warning("Short or unclear transcription – please check!")
+# --- RESULTS SECTION ---
+if st.session_state.parsed_problem:
+    col1, col2 = st.columns(2)
+    with col1:
+        st.subheader("Parsed Structure")
+        st.json(st.session_state.parsed_problem)
+    with col2:
+        st.subheader("Retrieved Formulas")
+        st.info(st.session_state.rag_context if st.session_state.rag_context else "No matching formulas found.")
 
-        if st.button("Parse and Proceed"):
-            problem_text = st.session_state.get("edited_asr", transcript if 'transcript' in locals() else "")
-            if not problem_text.strip():
-                st.error("No transcript available. Run transcription first.")
-            else:
-                with st.spinner("Parsing with Gemini..."):
-                    st.session_state.parsed_problem = parse_problem(problem_text)
-                    st.json(st.session_state.parsed_problem)
-
-                if st.session_state.parsed_problem.get("error"):
-                    st.error("Parsing failed.")
-                elif st.session_state.parsed_problem.get("needs_clarification", False):
-                    st.warning("Ambiguous problem.")
-                else:
-                    with st.spinner("Retrieving relevant knowledge..."):
-                        rag_result = retrieve_context(st.session_state.parsed_problem["problem_text"])
-                        st.session_state.rag_context = rag_result.get("context", "")
-                        st.session_state.rag_sources = rag_result.get("sources", [])
-
-                    st.success("Knowledge retrieved!")
-                    if st.session_state.rag_context:
-                        st.text_area("Retrieved Knowledge:", value=st.session_state.rag_context, height=250, disabled=True)
-
-# ============================
-# MULTI-AGENT SOLVING SECTION
-# ============================
-st.markdown("---")
-st.subheader("Step 2: Solve the Problem")
-
-if st.session_state.parsed_problem and not st.session_state.parsed_problem.get("error") and not st.session_state.parsed_problem.get("needs_clarification", False):
-    if st.button("🧠 Solve with Multi-Agent System", type="primary", use_container_width=True):
-        with st.spinner("Running multi-agent system (Solver → Verifier → Explainer)..."):
-            from agents.supervisor import run_multi_agent_system
-
+    # --- MULTI-AGENT SOLVER ---
+    if st.button("Step 2: Solve with Multi-Agent System", type="primary"):
+        with st.spinner("Agents are collaborating..."):
             results = run_multi_agent_system(
                 parsed_problem=st.session_state.parsed_problem,
                 rag_context=st.session_state.rag_context
             )
+            
+            st.divider()
+            st.subheader("Final Solution")
+            st.write(results.get("final_solution", "Error generating solution."))
+            
+            with st.expander("View Step-by-Step Explanation"):
+                st.write(results.get("explanation"))
+            
+            with st.expander("View Verifier Feedback"):
+                v = results.get("verification", {})
+                st.write(f"Correct: {v.get('is_correct')}")
+                st.write(v.get("feedback"))
 
-            if results["status"] == "needs_clarification":
-                st.warning("The problem needs clarification before solving.")
-            elif results["status"] == "parse_error":
-                st.error(f"Parsing error: {results.get('error')}")
-            else:
-                # Store results for display
-                st.session_state.solution_results = results
-
-        # ------------------------------
-        # DISPLAY RESULTS (only if solved)
-        # ------------------------------
-        if "solution_results" in st.session_state:
-            res = st.session_state.solution_results
-
-            st.success("✅ Solution generated!")
-
-            # Cleaned problem
-            st.markdown("#### Problem")
-            st.write(res["problem"])
-
-            # Topic badge
-            topic = res.get("topic", "unknown")
-            st.caption(f"**Detected topic:** {topic.title()}")
-
-            # Final solution
-            st.markdown("#### Final Answer")
-            st.write(res["final_solution"])
-
-            # Verification feedback
-            st.markdown("#### Verification")
-            verification = res["verification"]
-            if verification["is_correct"]:
-                st.success("Solution verified as correct ✓")
-            else:
-                st.warning("Solution had issues – corrected version provided")
-            st.write(verification["feedback"])
-
-            # Detailed explanation
-            st.markdown("#### Step-by-Step Explanation")
-            st.write(res["explanation"])
-
-            # Show raw solver output if different
-            if not verification["is_correct"]:
-                with st.expander("View original (incorrect) solution"):
-                    st.write(res["raw_solution"])
-
-            # Update sidebar trace
-            st.sidebar.markdown("#### Agent Trace")
-            st.sidebar.success("Multi-agent system completed:")
-            st.sidebar.write("1. Parser → Done")
-            st.sidebar.write("2. RAG Retrieval → Done")
-            st.sidebar.write("3. Solver Agent → Done")
-            st.sidebar.write("4. Verifier Agent → Done")
-            st.sidebar.write("5. Explainer Agent → Done")
-
-else:
-    st.info("👈 First complete **Step 1** (Parse and Proceed) to enable solving.")
-    st.button("Solve with Multi-Agent System", disabled=True)
-# ============================
-# SIDEBAR
-# ============================
+# --- SIDEBAR TRACE ---
 st.sidebar.title("Agent Trace")
-st.sidebar.write("1. Input → OCR/ASR → HITL Edit\n2. Parser Agent (Gemini)\n3. RAG Retrieval (FAISS + Gemini Embeddings)")
-
-st.sidebar.title("Retrieved Context")
-if st.session_state.rag_context:
-    st.sidebar.text_area("Knowledge", st.session_state.rag_context, height=200, key="sidebar_context")
-    st.sidebar.write("**Sources:**")
-    for source in st.session_state.rag_sources:
-        st.sidebar.caption(f"📄 {source}")
-else:
-    st.sidebar.info("No context retrieved yet.")
-
-st.sidebar.title("Status")
 if st.session_state.parsed_problem:
-    if st.session_state.parsed_problem.get("error"):
-        st.sidebar.error("Parsing failed")
-    else:
-        st.sidebar.success("Problem parsed successfully!")
-        st.sidebar.json(st.session_state.parsed_problem)
-else:
-    st.sidebar.info("Waiting for input...")
+    st.sidebar.success("✅ Parser Agent Done")
+    if st.session_state.rag_context:
+        st.sidebar.success("✅ RAG Retrieval Done")

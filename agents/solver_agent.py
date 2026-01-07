@@ -16,7 +16,7 @@ def solve_equation(equation: str) -> str:
         return f"Error: {e}"
 
 tools = [solve_equation]  # Add more tools like calculator if needed
-solver_agent = create_react_agent(llm, tools, prompt)
+solver_agent = create_react_agent(llm, tools)
 solver_executor = AgentExecutor(agent=solver_agent, tools=tools, verbose=True)
 
 def run_solver(problem: str, context: str) -> str:

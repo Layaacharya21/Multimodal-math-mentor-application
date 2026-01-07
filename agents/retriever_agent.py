@@ -1,7 +1,6 @@
 from langchain_openai import ChatOpenAI
 from langchain.agents import create_react_agent, AgentExecutor
-from langchain.tools.retriever import create_retriever_tool
-
+from langchain_core.tools import create_retriever_tool
 llm = ChatOpenAI(temperature=0.1)
 
 # Assume retriever from app.py is passed or global
@@ -11,7 +10,7 @@ retriever_tool = create_retriever_tool(
     "Searches the math knowledge base for relevant formulas and tips."
 )
 tools = [retriever_tool]
-retriever_agent = create_react_agent(llm, tools, prompt)
+retriever_agent = create_react_agent(llm, tools)
 retriever_executor = AgentExecutor(agent=retriever_agent, tools=tools, verbose=True)
 
 def run_retriever(query: str) -> str:
