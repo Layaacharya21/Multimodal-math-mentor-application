@@ -1,7 +1,6 @@
-# Already good if you moved your parse_problem function here
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import PromptTemplate
-from langchain.chains import LLMChain
+# No LLMChain import needed!
 import json
 
 def parse_problem(text: str):
@@ -21,12 +20,18 @@ Return ONLY valid JSON:
   "needs_clarification": false
 }}
 """)
-        chain = LLMChain(llm=llm, prompt=prompt)
-        response = chain.run(text=text)
+        # MODERN WAY: Using LCEL (LangChain Expression Language)
+        chain = prompt | llm 
+        
+        # .invoke replaces .run
+        response = chain.invoke({"text": text})
+        
+        # ChatModels return a BaseMessage object, so we access .content
+        content = response.content
 
-        start = response.find("{")
-        end = response.rfind("}") + 1
-        json_str = response[start:end]
+        start = content.find("{")
+        end = content.rfind("}") + 1
+        json_str = content[start:end]
         return json.loads(json_str)
     except Exception as e:
         return {"error": str(e)}
