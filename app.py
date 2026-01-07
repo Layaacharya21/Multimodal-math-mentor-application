@@ -18,7 +18,6 @@ from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 
 # --- Import your custom agent logic ---
-# Ensure these files use the 'invoke' method rather than 'run'
 from agents.supervisor import run_multi_agent_system
 
 # ============================
@@ -27,7 +26,6 @@ from agents.supervisor import run_multi_agent_system
 load_dotenv()
 st.set_page_config(page_title="Math Mentor", layout="wide")
 
-# Verify API Key
 if not os.getenv("GOOGLE_API_KEY"):
     st.error("🚨 GOOGLE_API_KEY is MISSING! Please check your .env file.")
     st.stop()
@@ -38,7 +36,6 @@ if not os.getenv("GOOGLE_API_KEY"):
 @st.cache_resource(show_spinner="Building Math Knowledge Base...")
 def get_retriever():
     try:
-        # Create folder if missing
         if not os.path.exists("knowledge_base"):
             os.makedirs("knowledge_base")
             with open("knowledge_base/sample.txt", "w") as f:
@@ -59,17 +56,15 @@ def get_retriever():
         st.error(f"RAG Init Error: {e}")
         return None
 
-# Global Retriever Instance
 retriever = get_retriever()
 
 # ============================
 # 3. CORE LOGIC FUNCTIONS
 # ============================
-
 def parse_problem(text: str):
     """Uses Gemini to clean and structure raw input text into JSON."""
     try:
-        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0)
         prompt = PromptTemplate.from_template("""
         You are a precise math problem parser. 
         Clean and structure the following input: {text}
@@ -84,11 +79,9 @@ def parse_problem(text: str):
         }}
         """)
         
-        # LCEL Chain: Prompt piped to LLM
         chain = prompt | llm
         response = chain.invoke({"text": text})
         
-        # Handle JSON parsing from LLM string
         content = response.content
         start = content.find("{")
         end = content.rfind("}") + 1
@@ -113,7 +106,6 @@ def retrieve_context(problem_text: str):
 # ============================
 st.title("🧠 Multimodal Math Mentor")
 
-# State Management
 if "parsed_problem" not in st.session_state:
     st.session_state.parsed_problem = None
 if "rag_context" not in st.session_state:
@@ -141,7 +133,6 @@ elif input_mode == "Audio":
     if up_aud:
         if st.button("Transcribe"):
             pipe = pipeline("automatic-speech-recognition", model="openai/whisper-tiny")
-            # Convert to numpy for librosa if needed, or pass directly to pipeline
             audio, sr = librosa.load(io.BytesIO(up_aud.read()), sr=16000)
             raw_text = pipe({"raw": audio, "sampling_rate": sr})["text"]
             st.text_input("Transcription:", value=raw_text, key="asr_edit")
@@ -152,9 +143,7 @@ if st.button("Step 1: Parse & Search Knowledge"):
     
     if input_to_parse:
         with st.spinner("Analyzing..."):
-            # 1. Parse
             st.session_state.parsed_problem = parse_problem(input_to_parse)
-            # 2. Retrieve
             rag_data = retrieve_context(st.session_state.parsed_problem.get("problem_text", ""))
             st.session_state.rag_context = rag_data["context"]
             st.session_state.rag_sources = rag_data["sources"]
@@ -173,6 +162,7 @@ if st.session_state.parsed_problem:
     # --- MULTI-AGENT SOLVER ---
     if st.button("Step 2: Solve with Multi-Agent System", type="primary"):
         with st.spinner("Agents are collaborating..."):
+            # We pass the ALREADY parsed data to the supervisor
             results = run_multi_agent_system(
                 parsed_problem=st.session_state.parsed_problem,
                 rag_context=st.session_state.rag_context

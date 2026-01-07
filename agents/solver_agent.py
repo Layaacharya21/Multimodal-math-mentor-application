@@ -3,7 +3,7 @@ from langchain_core.prompts import PromptTemplate
 
 def solver_agent(parsed_problem, rag_context):
     try:
-        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0)
         
         prompt = PromptTemplate.from_template("""
         You are an expert Math Solver. 
@@ -18,9 +18,13 @@ def solver_agent(parsed_problem, rag_context):
         
         chain = prompt | llm
         
-        # Extract the text from the dictionary passed by supervisor
-        problem_text = parsed_problem.get("problem_text", str(parsed_problem))
-        topic = parsed_problem.get("topic", "General Math")
+        # Handle if parsed_problem is dict or string
+        if isinstance(parsed_problem, dict):
+            problem_text = parsed_problem.get("problem_text", "")
+            topic = parsed_problem.get("topic", "General Math")
+        else:
+            problem_text = str(parsed_problem)
+            topic = "General Math"
         
         response = chain.invoke({
             "problem_text": problem_text, 

@@ -4,7 +4,7 @@ import json
 
 def verifier_agent(parsed_problem, solution_text):
     try:
-        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0)
+        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0)
         
         prompt = PromptTemplate.from_template("""
         You are a Math Verifier. Check the solution below for the given problem.
@@ -17,20 +17,24 @@ def verifier_agent(parsed_problem, solution_text):
         
         Return ONLY valid JSON:
         {{
-            "is_correct": true/false,
-            "feedback": "Short explanation of errors if any, or confirmation."
+            "is_correct": true,
+            "feedback": "Short explanation."
         }}
         """)
         
         chain = prompt | llm
-        problem_text = parsed_problem.get("problem_text", str(parsed_problem))
+        
+        if isinstance(parsed_problem, dict):
+            problem_text = parsed_problem.get("problem_text", "")
+        else:
+            problem_text = str(parsed_problem)
         
         response = chain.invoke({
             "problem": problem_text,
             "solution": solution_text
         })
         
-        # Clean JSON
+        # JSON Cleaning
         content = response.content
         start = content.find("{")
         end = content.rfind("}") + 1
