@@ -12,3 +12,5 @@ librosa
 langchain-classic
 langchain-text-splitters 
 tiktoken  
+langchain-community
+langchain-text-splitters
