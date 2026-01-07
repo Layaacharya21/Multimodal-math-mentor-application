@@ -2,6 +2,12 @@ import streamlit as st
 import os
 from dotenv import load_dotenv
 from pathlib import Path
+from agents.parser_agent import parser_agent
+from agents.retriever_agent import retriever_agent
+from agents.solver_agent import solver_agent
+from agents.verifier_agent import verifier_agent
+from agents.explainer_agent import explainer_agent
+from agents.supervisor import run_multi_agent_system
 
 # ============================
 # FORCE LOAD .env FILE (Critical Fix for Codespaces)
@@ -42,6 +48,16 @@ from langchain_community.vectorstores import FAISS
 print("GOOGLE API KEY:", os.getenv("GOOGLE_API_KEY")[:5] + "..." if os.getenv("GOOGLE_API_KEY") else "MISSING")
 
 load_dotenv()
+
+from langchain_community.vectorstores import FAISS
+from langchain_openai import OpenAIEmbeddings
+from langchain_community.document_loaders import DirectoryLoader, TextLoader
+
+embeddings = OpenAIEmbeddings()
+loader = DirectoryLoader('knowledge_base/', glob="*.txt", loader_cls=TextLoader)
+docs = loader.load()
+vector_store = FAISS.from_documents(docs, embeddings)
+retriever = vector_store.as_retriever()  # We'll use this in Retriever Agent
 
 # ============================
 # PHASE 3: RAG SETUP (Runs once)
@@ -267,6 +283,80 @@ elif input_mode == "Audio":
                     if st.session_state.rag_context:
                         st.text_area("Retrieved Knowledge:", value=st.session_state.rag_context, height=250, disabled=True)
 
+# ============================
+# MULTI-AGENT SOLVING SECTION
+# ============================
+st.markdown("---")
+st.subheader("Step 2: Solve the Problem")
+
+if st.session_state.parsed_problem and not st.session_state.parsed_problem.get("error") and not st.session_state.parsed_problem.get("needs_clarification", False):
+    if st.button("🧠 Solve with Multi-Agent System", type="primary", use_container_width=True):
+        with st.spinner("Running multi-agent system (Solver → Verifier → Explainer)..."):
+            from agents.supervisor import run_multi_agent_system
+
+            results = run_multi_agent_system(
+                parsed_problem=st.session_state.parsed_problem,
+                rag_context=st.session_state.rag_context
+            )
+
+            if results["status"] == "needs_clarification":
+                st.warning("The problem needs clarification before solving.")
+            elif results["status"] == "parse_error":
+                st.error(f"Parsing error: {results.get('error')}")
+            else:
+                # Store results for display
+                st.session_state.solution_results = results
+
+        # ------------------------------
+        # DISPLAY RESULTS (only if solved)
+        # ------------------------------
+        if "solution_results" in st.session_state:
+            res = st.session_state.solution_results
+
+            st.success("✅ Solution generated!")
+
+            # Cleaned problem
+            st.markdown("#### Problem")
+            st.write(res["problem"])
+
+            # Topic badge
+            topic = res.get("topic", "unknown")
+            st.caption(f"**Detected topic:** {topic.title()}")
+
+            # Final solution
+            st.markdown("#### Final Answer")
+            st.write(res["final_solution"])
+
+            # Verification feedback
+            st.markdown("#### Verification")
+            verification = res["verification"]
+            if verification["is_correct"]:
+                st.success("Solution verified as correct ✓")
+            else:
+                st.warning("Solution had issues – corrected version provided")
+            st.write(verification["feedback"])
+
+            # Detailed explanation
+            st.markdown("#### Step-by-Step Explanation")
+            st.write(res["explanation"])
+
+            # Show raw solver output if different
+            if not verification["is_correct"]:
+                with st.expander("View original (incorrect) solution"):
+                    st.write(res["raw_solution"])
+
+            # Update sidebar trace
+            st.sidebar.markdown("#### Agent Trace")
+            st.sidebar.success("Multi-agent system completed:")
+            st.sidebar.write("1. Parser → Done")
+            st.sidebar.write("2. RAG Retrieval → Done")
+            st.sidebar.write("3. Solver Agent → Done")
+            st.sidebar.write("4. Verifier Agent → Done")
+            st.sidebar.write("5. Explainer Agent → Done")
+
+else:
+    st.info("👈 First complete **Step 1** (Parse and Proceed) to enable solving.")
+    st.button("Solve with Multi-Agent System", disabled=True)
 # ============================
 # SIDEBAR
 # ============================
