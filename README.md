@@ -4,7 +4,7 @@
 
 This Math Mentor helps students solve JEE-level math problems using **text, image (photo/screenshot), or audio input**. It combines **RAG, multi-agent reasoning, human-in-the-loop correction, memory, and self-learning** to provide accurate, step-by-step solutions that improve over time.
 
-**Live Deployed App**: (https://multimodal-math-mentor-application-htcsnrnevzwopdtadgz6hb.streamlit.app/)
+**Live Deployed App**: [https://multimodal-math-mentor-application-htcsnrnevzwopdtadgz6hb.streamlit.app/]
 
 **Demo Video** (4 minutes): [Insert YouTube/Unlisted link here]
 
