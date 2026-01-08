@@ -4,7 +4,7 @@
 
 This Math Mentor helps students solve JEE-level math problems using **text, image (photo/screenshot), or audio input**. It combines **RAG, multi-agent reasoning, human-in-the-loop correction, memory, and self-learning** to provide accurate, step-by-step solutions that improve over time.
 
-**Live Deployed App**: [Insert your Streamlit/HuggingFace link here after deployment]
+**Live Deployed App**: [[Insert your Streamlit/HuggingFace link here after deployment]](https://multimodal-math-mentor-application-htcsnrnevzwopdtadgz6hb.streamlit.app/)
 
 **Demo Video** (4 minutes): [Insert YouTube/Unlisted link here]
 
@@ -48,4 +48,6 @@ This Math Mentor helps students solve JEE-level math problems using **text, imag
 ## 🏗️ Architecture Diagram
 
 <img width="2547" height="5895" alt="Untitled diagram-2026-01-08-173250" src="https://github.com/user-attachments/assets/6226eb85-1131-4d6b-9f33-f42e40d14ea9" />
+
+
 
