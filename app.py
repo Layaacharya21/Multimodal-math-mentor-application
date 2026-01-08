@@ -69,7 +69,7 @@ retriever = get_retriever()
 # ============================
 def parse_problem(text: str):
     try:
-        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0)
+        llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0)
         prompt = PromptTemplate.from_template("""
         You are a precise math problem parser. Clean and structure the following input: {text}
         
@@ -273,4 +273,3 @@ if os.path.exists("math_mentor_memory.db"):
     st.sidebar.info(f"Memory active ({size:,} bytes)")
 else:
     st.sidebar.info("Memory ready")
-    
