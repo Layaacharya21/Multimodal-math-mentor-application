@@ -16,28 +16,20 @@ from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
-
-# --- Custom imports ---
 from agents.supervisor import run_multi_agent_system
-from memory import init_db, save_solution, find_similar_solution  # Phase 5
+from memory import init_db, save_solution, find_similar_solution
 
-# ============================
-# 1. ENVIRONMENT & CONFIG
-# ============================
 load_dotenv()
 st.set_page_config(page_title="Math Mentor", layout="wide")
 
 # Check for Google API key
 if not os.getenv("GOOGLE_API_KEY"):
-    st.error("🚨 GOOGLE_API_KEY is MISSING! Please add it to your .env file.")
+    st.error("GOOGLE_API_KEY is MISSING! Please add it to your .env file.")
     st.stop()
 
 # Initialize memory database
 init_db()
 
-# ============================
-# 2. RAG SETUP (Vector Store with Local Embeddings)
-# ============================
 @st.cache_resource(show_spinner="Building Math Knowledge Base...")
 def get_retriever():
     try:
@@ -65,9 +57,6 @@ def get_retriever():
 
 retriever = get_retriever()
 
-# ============================
-# 3. CORE LOGIC FUNCTIONS
-# ============================
 def parse_problem(text: str):
     """Uses Gemini 1.5 Flash to parse and structure the math problem."""
     try:
@@ -119,9 +108,6 @@ def retrieve_context(problem_text: str):
     except Exception as e:
         return {"context": f"Retrieval error: {e}", "sources": []}
 
-# ============================
-# 4. STREAMLIT UI
-# ============================
 st.title("🧠 Multimodal Math Mentor")
 
 # Session state initialization
