@@ -187,7 +187,6 @@ if st.session_state.parsed_problem:
     with col1:
         st.subheader("Parsed Problem")
         st.json(st.session_state.parsed_problem)
-        
         if st.session_state.parsed_problem.get("needs_clarification"):
             st.warning("Problem is ambiguous — please clarify and re-parse.")
         if st.session_state.parsed_problem.get("error"):
