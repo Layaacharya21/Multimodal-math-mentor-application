@@ -3,7 +3,6 @@ import os
 import json
 import io
 import librosa
-import easyocr
 from pathlib import Path
 from PIL import Image
 from dotenv import load_dotenv
@@ -16,9 +15,17 @@ from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
-from agents.supervisor import run_multi_agent_system
-from memory import init_db, save_solution, find_similar_solution
 
+# --- OCR Import ---
+from paddleocr import PaddleOCR  # Better for math than EasyOCR
+
+# --- Custom imports ---
+from agents.supervisor import run_multi_agent_system
+from memory import init_db, save_solution, find_similar_solution  # Phase 5
+
+# ============================
+# 1. ENVIRONMENT & CONFIG
+# ============================
 load_dotenv()
 st.set_page_config(page_title="Math Mentor", layout="wide")
 
@@ -30,6 +37,9 @@ if not os.getenv("GOOGLE_API_KEY"):
 # Initialize memory database
 init_db()
 
+# ============================
+# 2. RAG SETUP (Vector Store)
+# ============================
 @st.cache_resource(show_spinner="Building Math Knowledge Base...")
 def get_retriever():
     try:
@@ -57,11 +67,13 @@ def get_retriever():
 
 retriever = get_retriever()
 
+# ============================
+# 3. CORE LOGIC FUNCTIONS
+# ============================
 def parse_problem(text: str):
-    """Uses Gemini 1.5 Flash to parse and structure the math problem."""
     try:
         llm = ChatGoogleGenerativeAI(
-            model="gemini-flash-lite-latest",  # Reliable free-tier model with high quota
+            model="gemini-1.5-flash",  # Reliable and high free quota
             temperature=0,
             convert_system_message_to_human=True
         )
@@ -108,14 +120,17 @@ def retrieve_context(problem_text: str):
     except Exception as e:
         return {"context": f"Retrieval error: {e}", "sources": []}
 
+# ============================
+# 4. STREAMLIT UI
+# ============================
 st.title("🧠 Multimodal Math Mentor")
 
 # Session state initialization
-for key in ["parsed_problem", "rag_context", "rag_sources", "ocr_text", "asr_text"]:
+for key in ["parsed_problem", "rag_context", "rag_sources", "ocr_text", "asr_text", "ocr_conf"]:
     if key not in st.session_state:
-        st.session_state[key] = [] if key == "rag_sources" else "" if key == "rag_context" else None
+        st.session_state[key] = [] if key == "rag_sources" else "" if key in ["rag_context", "ocr_text", "asr_text"] else 1.0 if key == "ocr_conf" else None
 
-# Default solution variables for sidebar
+# Default solution variables
 final_solution = None
 explanation = None
 verification = {}
@@ -130,16 +145,48 @@ elif input_mode == "Image":
     up_img = st.file_uploader("Upload Problem Image", type=["png", "jpg", "jpeg"])
     if up_img:
         st.image(up_img, caption="Uploaded Image", width=400)
+        
         if st.button("Extract Text (OCR)"):
-            with st.spinner("Extracting text from image..."):
-                reader = easyocr.Reader(['en'], gpu=False)
-                result = reader.readtext(up_img.getvalue(), detail=0)
-                extracted = " ".join(result)
-                st.session_state.ocr_text = extracted
-                st.rerun()
+            with st.spinner("Extracting text using PaddleOCR (optimized for math)..."):
+                try:
+                    # Initialize PaddleOCR once and cache it
+                    if "paddle_ocr" not in st.session_state:
+                        st.session_state.paddle_ocr = PaddleOCR(use_angle_cls=True, lang='en', use_gpu=False)
+                    
+                    ocr = st.session_state.paddle_ocr
+                    result = ocr.ocr(up_img.getvalue(), cls=True)
+                    
+                    lines = []
+                    confidences = []
+                    for page in result:
+                        if page is None:
+                            continue
+                        for line in page:
+                            text = line[1][0]
+                            conf = line[1][1]
+                            lines.append(text)
+                            confidences.append(conf)
+                    
+                    extracted = " ".join(lines)
+                    avg_conf = sum(confidences) / len(confidences) if confidences else 0
+                    
+                    st.session_state.ocr_text = extracted
+                    st.session_state.ocr_conf = avg_conf
+                    st.rerun()
+                    
+                except Exception as e:
+                    st.error(f"OCR failed: {e}")
+                    st.info("Try a clearer image or use text input.")
 
+        # Show editable text + confidence warning
         if st.session_state.ocr_text:
             st.text_area("Edit OCR Result (HITL):", value=st.session_state.ocr_text, height=120, key="ocr_edit_final")
+            
+            conf = st.session_state.ocr_conf
+            if conf < 0.8:
+                st.warning(f"Low OCR confidence ({conf:.2f}) — please carefully review and edit the text above.")
+            else:
+                st.success(f"High OCR confidence ({conf:.2f})")
 
 elif input_mode == "Audio":
     up_aud = st.file_uploader("Upload Audio", type=["wav", "mp3"])
@@ -159,7 +206,6 @@ elif input_mode == "Audio":
 
 # --- STEP 1: PARSE & RETRIEVE ---
 if st.button("Step 1: Parse Problem & Retrieve Knowledge", type="secondary"):
-    # Get correct input text
     if input_mode == "Image" and "ocr_edit_final" in st.session_state:
         input_text = st.session_state.ocr_edit_final
     elif input_mode == "Audio" and "asr_edit_final" in st.session_state:
@@ -214,7 +260,7 @@ if st.session_state.parsed_problem:
         # Memory reuse
         reused = find_similar_solution(problem_text)
         if reused:
-            st.success("🎉 Reusing verified correct solution from memory!")
+            st.success("Reusing verified correct solution from memory!")
             final_solution = reused
             explanation = "Reused from previous correct solution."
             verification = {"is_correct": True, "feedback": "Memory reuse"}
@@ -245,11 +291,11 @@ if st.session_state.parsed_problem:
         st.subheader("Was this solution correct?")
         c1, c2 = st.columns(2)
         
-        if c1.button("✅ Correct", type="primary", use_container_width=True):
+        if c1.button("Correct", type="primary", use_container_width=True):
             save_solution(problem_text, st.session_state.parsed_problem, final_solution, "correct")
             st.success("Saved as correct — will be reused in future!")
 
-        if c2.button("❌ Incorrect", type="secondary", use_container_width=True):
+        if c2.button("Incorrect", type="secondary", use_container_width=True):
             corrected = st.text_area("Enter the correct solution:", height=200)
             if st.button("Submit Correction"):
                 save_solution(problem_text, st.session_state.parsed_problem, final_solution, "incorrect", corrected)
@@ -260,15 +306,15 @@ st.sidebar.title("Agent Trace")
 st.sidebar.write("1. Input → Extraction → HITL Edit")
 st.sidebar.write("2. Parser → Structured Problem")
 if st.session_state.parsed_problem and "error" not in st.session_state.parsed_problem:
-    st.sidebar.success("✅ Parser Complete")
+    st.sidebar.success("Parser Complete")
     if st.session_state.rag_context:
-        st.sidebar.success("✅ RAG Retrieval Complete")
+        st.sidebar.success("RAG Retrieval Complete")
     if final_solution:
-        st.sidebar.success("✅ Multi-Agent Solving Complete")
+        st.sidebar.success("Multi-Agent Solving Complete")
         if verification.get("is_correct"):
-            st.sidebar.success("✅ Verified Correct")
+            st.sidebar.success("Verified Correct")
         else:
-            st.sidebar.warning("⚠️ Verification Uncertain")
+            st.sidebar.warning("Verification Uncertain")
 
 st.sidebar.title("Memory")
 if os.path.exists("math_mentor_memory.db"):
