@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from transformers import pipeline
 
 # --- Modern LangChain Imports ---
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_ollama import ChatOllama
 from langchain_core.prompts import PromptTemplate
 from langchain_community.document_loaders import DirectoryLoader, TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -69,7 +69,11 @@ retriever = get_retriever()
 # ============================
 def parse_problem(text: str):
     try:
-        llm = ChatGoogleGenerativeAI(model="gemini-2.5-pro", temperature=0)
+        llm = ChatOllama(
+    model="qwen2-math:7b",  # or "llama3.1:8b"
+    temperature=0.0,
+    base_url="http://localhost:11434"
+)
         prompt = PromptTemplate.from_template("""
         You are a precise math problem parser. Clean and structure the following input: {text}
         
