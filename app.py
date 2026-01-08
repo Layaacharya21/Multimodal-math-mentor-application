@@ -276,4 +276,3 @@ if os.path.exists("math_mentor_memory.db"):
     st.sidebar.info(f"Active ({size:,} bytes stored)")
 else:
     st.sidebar.info("Ready")
-    
