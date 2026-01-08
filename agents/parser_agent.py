@@ -4,7 +4,7 @@ import json
 
 def parser_agent(text: str):
     try:
-        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest", temperature=0)
+        llm = ChatGoogleGenerativeAI(model="gemini-flash-lite-latest", temperature=0)
         prompt = PromptTemplate.from_template("""
         You are a precise math problem parser.
         Input: {text}

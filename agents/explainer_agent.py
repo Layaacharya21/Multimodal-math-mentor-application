@@ -4,7 +4,7 @@ from langchain_core.prompts import PromptTemplate
 def explainer_agent(solution_text, problem_context):
     try:
         # Temperature 0.7 for more natural/friendly tone
-        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest", temperature=0.7)
+        llm = ChatGoogleGenerativeAI(model="gemini-flash-lite-latest", temperature=0.7)
         
         prompt = PromptTemplate.from_template("""
         You are a helpful and encouraging Math Mentor.

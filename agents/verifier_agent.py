@@ -4,7 +4,7 @@ import json
 
 def verifier_agent(parsed_problem, solution_text):
     try:
-        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest", temperature=0)
+        llm = ChatGoogleGenerativeAI(model="gemini-flash-lite-latest", temperature=0)
         
         prompt = PromptTemplate.from_template("""
         You are a Math Verifier. Check the solution below for the given problem.

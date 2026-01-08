@@ -72,7 +72,7 @@ def parse_problem(text: str):
     """Uses Gemini 1.5 Flash to parse and structure the math problem."""
     try:
         llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash-latest",  # Reliable free-tier model with high quota
+            model="gemini-flash-lite-latest",  # Reliable free-tier model with high quota
             temperature=0,
             convert_system_message_to_human=True
         )
