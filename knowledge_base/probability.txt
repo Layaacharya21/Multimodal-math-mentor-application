@@ -1,0 +1,22 @@
+Topic: Probability and Combinatorics
+
+1. Basic Probability:
+- P(A) = (Number of favorable outcomes) / (Total number of outcomes)
+- P(A') = 1 - P(A) (Complement rule)
+- Addition Rule: P(A ∪ B) = P(A) + P(B) - P(A ∩ B)
+
+2. Conditional Probability:
+- P(A | B) = P(A ∩ B) / P(B), provided P(B) ≠ 0.
+- This represents the probability of event A occurring given that event B has already occurred.
+
+3. Independent Events:
+- Two events A and B are independent if P(A ∩ B) = P(A) * P(B).
+
+4. Bayes' Theorem:
+- P(A | B) = [ P(B | A) * P(A) ] / P(B)
+- Used to revise the probability of an event given new evidence.
+
+5. Permutations and Combinatorics:
+- nPr (Permutation - Order matters): n! / (n-r)!
+- nCr (Combination - Order does not matter): n! / [r! * (n-r)!]
+- Useful relation: nCr = nC(n-r)

@@ -1,0 +1,18 @@
+Topic: Linear Algebra - Matrices and Determinants
+
+1. Matrices:
+- Matrix Multiplication: Defined only if the number of columns in the first matrix equals the number of rows in the second matrix.
+- Identity Matrix (I): A square matrix with 1s on the diagonal and 0s elsewhere. AI = IA = A.
+
+2. Determinants (for 2x2 Matrix):
+- If A = [[a, b], [c, d]], then det(A) = ad - bc.
+
+3. Inverse of a Matrix:
+- A square matrix A is invertible only if det(A) ≠ 0.
+- For 2x2 matrix A: A⁻¹ = (1/det(A)) * [[d, -b], [-c, a]].
+
+4. System of Linear Equations (Cramer's Rule):
+- For a system AX = B:
+- If det(A) ≠ 0, there is a unique solution.
+- If det(A) = 0 and (adj A)B ≠ 0, there is no solution (Inconsistent).
+- If det(A) = 0 and (adj A)B = 0, there are infinitely many solutions (Dependent).
