@@ -28,7 +28,7 @@ load_dotenv()
 st.set_page_config(page_title="Math Mentor", layout="wide")
 
 if not os.getenv("GOOGLE_API_KEY"):
-    st.error("🚨 GOOGLE_API_KEY is MISSING! Please check your .env file.")
+    st.error("GOOGLE_API_KEY is MISSING! Please check your .env file.")
     st.stop()
 
 # Initialize memory database
@@ -68,9 +68,8 @@ retriever = get_retriever()
 # 3. CORE LOGIC FUNCTIONS
 # ============================
 def parse_problem(text: str):
-    """Uses Gemini to clean and structure raw input text into JSON."""
     try:
-        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0)  # Using stable model
+        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0)
         prompt = PromptTemplate.from_template("""
         You are a precise math problem parser. Clean and structure the following input: {text}
         
@@ -91,7 +90,7 @@ def parse_problem(text: str):
         start = content.find("{")
         end = content.rfind("}") + 1
         if start == -1 or end == 0:
-            raise ValueError("No JSON found in response")
+            raise ValueError("No JSON found")
         return json.loads(content[start:end])
     except Exception as e:
         return {"error": str(e), "needs_clarification": True}
@@ -110,12 +109,22 @@ def retrieve_context(problem_text: str):
 # ============================
 # 4. STREAMLIT UI
 # ============================
-st.title("🧠 Multimodal Math Mentor")
+st.title("Multimodal Math Mentor")
 
-# Session state
+# Session state initialization
 for key in ["parsed_problem", "rag_context", "rag_sources", "ocr_text", "asr_text"]:
     if key not in st.session_state:
-        st.session_state[key] = "" if key in ["rag_context"] else [] if key == "rag_sources" else None
+        if key == "rag_sources":
+            st.session_state[key] = []
+        elif key == "rag_context":
+            st.session_state[key] = ""
+        else:
+            st.session_state[key] = None
+
+# Default variables for solution (used in sidebar)
+final_solution = None
+explanation = None
+verification = {}
 
 # --- INPUT SECTION ---
 input_mode = st.radio("Input Method:", ["Text", "Image", "Audio"], horizontal=True)
@@ -156,13 +165,12 @@ elif input_mode == "Audio":
 
 # --- STEP 1: PARSE & RETRIEVE ---
 if st.button("Step 1: Parse Problem & Retrieve Knowledge", type="secondary"):
-    # Determine which text to use
     if input_mode == "Image" and "ocr_edit_final" in st.session_state:
         input_to_parse = st.session_state.ocr_edit_final
     elif input_mode == "Audio" and "asr_edit_final" in st.session_state:
         input_to_parse = st.session_state.asr_edit_final
-    elif input_mode == "Text":
-        input_to_parse = st.session_state.get("text_input", "")
+    elif input_mode == "Text" and "text_input" in st.session_state:
+        input_to_parse = st.session_state.text_input
     else:
         input_to_parse = ""
 
@@ -193,7 +201,7 @@ if st.session_state.parsed_problem:
             st.info(st.session_state.rag_context)
             st.caption("Sources:")
             for src in st.session_state.rag_sources:
-                st.caption(f"📄 {src}")
+                st.caption(f"{src}")
         else:
             st.info("No relevant knowledge found.")
 
@@ -201,13 +209,13 @@ if st.session_state.parsed_problem:
     if st.button("Step 2: Solve with Multi-Agent System", type="primary"):
         problem_text = st.session_state.parsed_problem["problem_text"]
 
-        # Check memory for similar correct solution
+        # Memory reuse
         reused_solution = find_similar_solution(problem_text)
         if reused_solution:
-            st.success("🎉 Reusing previously verified correct solution from memory!")
+            st.success("Reusing previously verified correct solution from memory!")
             final_solution = reused_solution
-            explanation = "This solution was marked correct in a previous session."
-            verification = {"is_correct": True, "feedback": "Reused from memory"}
+            explanation = "Reused from memory (previously marked correct)."
+            verification = {"is_correct": True, "feedback": "Reused from verified correct solution"}
         else:
             with st.spinner("Agents are working together..."):
                 results = run_multi_agent_system(
@@ -229,39 +237,40 @@ if st.session_state.parsed_problem:
             st.write(f"**Verdict:** {'Correct' if verification.get('is_correct') else 'Uncertain/Incorrect'}")
             st.write(verification.get("feedback", "No feedback"))
 
-        # --- FEEDBACK & SELF-LEARNING (HITL) ---
+        # --- FEEDBACK & SELF-LEARNING ---
         st.markdown("---")
         st.subheader("Was this solution correct?")
         col1, col2 = st.columns(2)
 
-        if col1.button("✅ Correct", type="primary", use_container_width=True):
+        if col1.button("Correct", type="primary", use_container_width=True):
             save_solution(problem_text, st.session_state.parsed_problem, final_solution, "correct")
-            st.success("Thank you! This solution is now saved for future reuse.")
+            st.success("Thank you! Saved as correct for future reuse.")
 
-        if col2.button("❌ Incorrect", type="secondary", use_container_width=True):
-            corrected = st.text_area("Please provide the correct solution or feedback:", height=200)
+        if col2.button("Incorrect", type="secondary", use_container_width=True):
+            corrected = st.text_area("Please provide the correct solution:", height=200)
             if st.button("Submit Correction"):
                 save_solution(problem_text, st.session_state.parsed_problem, final_solution, "incorrect", corrected)
-                st.success("Correction saved. The system will learn from this!")
+                st.success("Correction saved. System will learn from this!")
 
 # --- SIDEBAR: AGENT TRACE & STATUS ---
 st.sidebar.title("Agent Trace")
 st.sidebar.write("1. Multimodal Input → Extraction → HITL Edit")
 st.sidebar.write("2. Parser Agent → Structured Problem")
 if st.session_state.parsed_problem:
-    st.sidebar.success("✅ Parser Complete")
+    st.sidebar.success("Parser Complete")
     if st.session_state.rag_context:
-        st.sidebar.success("✅ RAG Retrieval Complete")
-    if 'final_solution' in locals() or reused_solution:
-        st.sidebar.success("✅ Multi-Agent Solving Complete")
+        st.sidebar.success("RAG Retrieval Complete")
+    if final_solution:  # Now safe — defined earlier
+        st.sidebar.success("Multi-Agent Solving Complete")
         if verification.get("is_correct"):
-            st.sidebar.success("✅ Verified Correct")
+            st.sidebar.success("Verified Correct")
         else:
-            st.sidebar.warning("⚠️ Verification Uncertain")
+            st.sidebar.warning("Verification Uncertain")
 
 st.sidebar.title("Memory Status")
 if os.path.exists("math_mentor_memory.db"):
     size = os.path.getsize("math_mentor_memory.db")
-    st.sidebar.info(f"Memory DB active ({size} bytes)")
+    st.sidebar.info(f"Memory active ({size:,} bytes)")
 else:
-    st.sidebar.info("Memory DB ready")
+    st.sidebar.info("Memory ready")
+    
