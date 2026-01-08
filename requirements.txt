@@ -2,7 +2,6 @@ streamlit
 langchain
 langchain-community
 langchain-google-genai
-openai
 faiss-cpu
 easyocr
 torch
@@ -22,5 +21,3 @@ langchain-community
 langchain-google-genai
 langchain-huggingface
 langchain-ollama
-paddleocr
-paddlepaddle
