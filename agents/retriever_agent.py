@@ -13,7 +13,7 @@ def get_retriever_executor(retriever):
 
     # 2. Define the LLM (Updated to Gemini 1.5 Flash)
     llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash", 
+        model="gemini-1.5-flash-latest", 
         temperature=0,
         convert_system_message_to_human=True
     )

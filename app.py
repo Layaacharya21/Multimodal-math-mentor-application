@@ -72,7 +72,7 @@ def parse_problem(text: str):
     """Uses Gemini 1.5 Flash to parse and structure the math problem."""
     try:
         llm = ChatGoogleGenerativeAI(
-            model="gemini-1.5-flash",  # Reliable free-tier model with high quota
+            model="gemini-1.5-flash-latest",  # Reliable free-tier model with high quota
             temperature=0,
             convert_system_message_to_human=True
         )
@@ -290,4 +290,3 @@ if os.path.exists("math_mentor_memory.db"):
     st.sidebar.info(f"Active ({size:,} bytes stored)")
 else:
     st.sidebar.info("Ready")
-    

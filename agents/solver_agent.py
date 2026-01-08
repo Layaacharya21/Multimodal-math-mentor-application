@@ -3,7 +3,7 @@ from langchain_core.prompts import PromptTemplate
 
 def solver_agent(parsed_problem, rag_context):
     try:
-        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash", temperature=0)
+        llm = ChatGoogleGenerativeAI(model="gemini-1.5-flash-latest", temperature=0)
         
         prompt = PromptTemplate.from_template("""
         You are an expert Math Solver. 
